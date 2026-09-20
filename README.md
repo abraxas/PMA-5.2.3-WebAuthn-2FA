@@ -26,7 +26,7 @@ phpMyAdmin 5.2.3 (default tarball, without web-auth/webauthn-lib) does not verif
 | Product | [phpMyAdmin](https://www.phpmyadmin.net/) |
 | Affected | **5.2.3** default tarball (`web-auth/webauthn-lib` absent) |
 | Patched | vendor patch — not yet assigned |
-| Auth | MySQL password (then WebAuthn 2FA skipped) |
+| Auth | authenticated (MySQL password, then WebAuthn skipped) |
 | License | [GNU Affero GPL v3.0](LICENSE) |
 | Lab | `127.0.0.1` only · vendor/client disclosure pack, not a scanner |
 
@@ -103,7 +103,7 @@ docker compose up --build -d
 python3 ../PMA-5.2.3-WebAuthn-2FA-Abraxas-Labs.py http://127.0.0.1:18080
 ```
 
-Success is stdout `SUCCESS PMA-WEBAUTHN-BYPASS` with `still_2fa=False landed=True`. Generic 200 HTML is not it.
+Success is the **witness** above in the response body. Generic 200 HTML is not it.
 
 ---
 
@@ -113,9 +113,6 @@ Loopback stack used to reproduce. Official images unless a `Dockerfile` in this 
 
 - [`lab/docker-compose.yml`](lab/docker-compose.yml)
 - [`lab/Dockerfile`](lab/Dockerfile)
-- [`lab/init.sql`](lab/init.sql)
-- [`lab/config.inc.php`](lab/config.inc.php)
-- [`lab/README.md`](lab/README.md)
 
 ```bash
 cd lab

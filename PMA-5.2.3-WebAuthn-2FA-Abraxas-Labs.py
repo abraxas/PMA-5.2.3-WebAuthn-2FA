@@ -26,8 +26,8 @@
 #  CVE: PMA-5.2.3-WebAuthn-2FA (High: 8.1)
 #  Vendor: phpMyAdmin (phpMyAdmin)
 #  Versions: phpMyAdmin <= 5.2.3
-#  Impact: Remote Code Execution
-#  Requires: unauthenticated POST /index.php?route=/
+#  Impact: 2FA Bypass
+#  Requires: authenticated POST /index.php?route=/
 #
 ######################################################################################
 #
