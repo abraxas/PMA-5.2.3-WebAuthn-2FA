@@ -9,6 +9,8 @@
   &nbsp;·&nbsp;
   <a href="https://x.com/abraxas_null">@abraxas_null</a>
   &nbsp;·&nbsp;
+  <a href="mailto:abraxas.null@proton.me">abraxas.null@proton.me</a>
+  &nbsp;·&nbsp;
   <a href="https://github.com/abraxas/PMA-5.2.3-WebAuthn-2FA">PMA-5.2.3-WebAuthn-2FA</a>
 </p>
 
