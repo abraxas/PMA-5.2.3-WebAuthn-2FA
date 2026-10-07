@@ -17,7 +17,7 @@ services:
   pma:
     build: .
     ports:
-      - "18080:80"
+      - "127.0.0.1:18080:80"
     depends_on:
       db:
         condition: service_healthy
