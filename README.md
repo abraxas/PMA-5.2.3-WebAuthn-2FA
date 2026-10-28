@@ -13,6 +13,10 @@
   &nbsp;·&nbsp;
   <a href="https://github.com/abraxas/PMA-5.2.3-WebAuthn-2FA">PMA-5.2.3-WebAuthn-2FA</a>
 </p>
+<p align="center">
+  Write-up: <a href="https://abraxaslabs.tech/research/PMA-5.2.3-WebAuthn-2FA"><strong>https://abraxaslabs.tech/research/PMA-5.2.3-WebAuthn-2FA</strong></a>
+</p>
+
 
 # PMA-5.2.3-WebAuthn-2FA
 
